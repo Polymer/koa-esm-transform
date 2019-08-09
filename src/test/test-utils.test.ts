@@ -11,19 +11,16 @@
  * subject to an additional IP rights grant found at
  * http://polymer.github.io/PATENTS.txt
  */
-import * as Koa from 'koa';
+import test from 'tape';
 
-import {Logger, prefixedLogger} from './support/logger';
+import {squeeze} from './test-utils';
 
-export type EsmToAmdOptions = {
-  logger?: Logger|false,
-};
+test('squeeze will not inject newlines where no-spaces exist', (t) => {
+  t.plan(1);
+  t.equal(squeeze('<h1>Hello</h1>'), '<h1>Hello</h1>');
+});
 
-export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
-  const logger = options.logger === false ?
-      {} :
-      prefixedLogger('[koa-esm-to-amd]', options.logger || console);
-  return async (ctx: Koa.Context, next: Function) => {
-    // TODO(usergenic): Implement!
-  };
-};
+test('squeeze will shrink multiple spaces to single spaces', (t) => {
+  t.plan(1);
+  t.equal(squeeze('<h1> Hello </h1>'), '<h1>\nHello\n</h1>');
+});

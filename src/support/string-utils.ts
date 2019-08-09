@@ -11,19 +11,6 @@
  * subject to an additional IP rights grant found at
  * http://polymer.github.io/PATENTS.txt
  */
-import * as Koa from 'koa';
-
-import {Logger, prefixedLogger} from './support/logger';
-
-export type EsmToAmdOptions = {
-  logger?: Logger|false,
-};
-
-export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
-  const logger = options.logger === false ?
-      {} :
-      prefixedLogger('[koa-esm-to-amd]', options.logger || console);
-  return async (ctx: Koa.Context, next: Function) => {
-    // TODO(usergenic): Implement!
-  };
-};
+export const preserveSurroundingWhitespace =
+    (original: string, target: string): string => original.match(/^\s*/)![0] +
+    target.replace(/^\s*|\s*$/g, '') + original.match(/\s*$/)![0];
