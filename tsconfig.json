@@ -18,5 +18,9 @@
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "node",
     "esModuleInterop": true
-  }
+  },
+  "include": [
+    "custom_typings/**/*.d.ts",
+    "src/**/*.ts"
+  ]
 }

@@ -16,7 +16,7 @@ The koa-esm-to-amd middleware would transform that HTML code to something like t
 ```html
 <script>
 // An inline loader script from `@polymer/esm-amd-loader` package
-// which adds the `define` wrapper function used below.
+// which adds the `define` function used below.
 </script>
 <script>
 define(["./some-module.js"], function (_someModule) {
