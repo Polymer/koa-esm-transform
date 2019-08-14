@@ -18,6 +18,7 @@ import {Node as BabelNode} from '@babel/types';
 import {browserCapabilities} from 'browser-capabilities';
 import getStream from 'get-stream';
 import * as Koa from 'koa';
+import minimatch from 'minimatch';
 import {DefaultTreeNode as Parse5Node, parse as parse5Parse, serialize as parse5Serialize} from 'parse5';
 import {Stream} from 'stream';
 
@@ -80,6 +81,7 @@ export type ContextualBabelPluginFunction = (ctx: Koa.Context) =>
 
 export type EsmToAmdOptions = {
   babelPlugins?: BabelPluginItem[]|ContextualBabelPluginFunction,
+  exclude?: string[],
   logger?: Logger|false,
   logLevel?: LogLevel,
 };
@@ -158,6 +160,9 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
   const logger = options.logger === false ?
       {} :
       prefixedLogger('[koa-esm-to-amd]', options.logger || console);
+
+  const exclude = options.exclude;
+
   const babelPluginsOption =
       options.babelPlugins || browserCapabilitiesBasedPlugins;
 
@@ -171,6 +176,18 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
 
   return async(ctx: Koa.Context, next: Function): Promise<void> => {
     await next();
+
+    if (exclude && exclude.length > 0) {
+      if (exclude.some((pattern) => {
+            const excludeMatch = minimatch(ctx.path, pattern);
+            if (excludeMatch) {
+              logger.debug && logger.debug(`Excluding path "${ctx.path}"`);
+            }
+            return excludeMatch;
+          })) {
+        return;
+      }
+    }
 
     // Determine the babelPlugins for this request; the plugin list is
     // contextual when the babelPlugins option is a function.
@@ -191,16 +208,12 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
       return;
     }
 
-    // Get the body of the response as a string, since we'll have to parse
-    // it as a string.
-    const body = await getBodyAsString(ctx.body);
-
     // We'll inject the AMD loader only when we're transforming modules to AMD.
     const injectLoader = babelPlugins.includes(transformModulesAmd);
 
     if (ctx.response.is('html')) {
       ctx.body = await htmlSourceStrategy(
-          body,
+          await getBodyAsString(ctx.body),
           (ast: Parse5Node) => transformHTML(
               ast,
               ctx.request.url,
@@ -209,8 +222,11 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
               injectLoader,
               logger));
     } else if (ctx.response.is('js')) {
+      if (!ctx.querystring.includes('__esmtoamd')) {
+        return;
+      }
       ctx.body = await jsSourceStrategy(
-          body,
+          await getBodyAsString(ctx.body),
           (ast: BabelNode) =>
               transformJSModule(ast, ctx.request.url, babelPlugins, logger));
     }

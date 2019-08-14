@@ -33,14 +33,12 @@ export const transformHTML = async(
     injectLoader: boolean,
     logger: Logger): Promise<DefaultTreeNode> => {
   const baseURL = getBaseURL(ast, url);
-  let needAMDLoader = false;
   if (babelPlugins.includes(transformModulesAmd)) {
     for (const scriptTag of getExternalModuleScripts(ast)) {
       const src = getAttr(scriptTag, 'src');
       setTextContent(scriptTag, `define(['${src}']);`);
       removeAttr(scriptTag, 'src');
       removeAttr(scriptTag, 'type');
-      needAMDLoader = true;
     }
     for (const scriptTag of getNoModuleScripts(ast)) {
       removeNode(scriptTag);
@@ -56,9 +54,12 @@ export const transformHTML = async(
                 await transformJSModule(ast, baseURL, babelPlugins, logger)));
     setTextContent(scriptTag, transformedJS);
     removeAttr(scriptTag, 'type');
-    needAMDLoader = babelPlugins.includes(transformModulesAmd);
   }
-  if (injectLoader && needAMDLoader) {
+  // TODO(usergenic): Make this bit conditional on whether the babel plugins
+  // include the regenerator transform.
+  injectRegeneratorRuntime(ast);
+  if (injectLoader && babelPlugins.includes(transformModulesAmd)) {
+    injectRequireJSLoaderShim(ast);
     injectAMDLoader(ast);
   }
   return ast;
@@ -97,19 +98,47 @@ const getInlineModuleScripts = (ast: DefaultTreeNode): DefaultTreeNode[] =>
 const getTags = (ast: DefaultTreeNode, name: string): DefaultTreeNode[] =>
     nodeWalkAll(ast, (node) => node.nodeName === name);
 
-const amdLoaderScriptTag =
-    (parseFragment(
-         `<script>${
-             readFileSync(
-                 require.resolve('@polymer/esm-amd-loader'),
-                 'utf-8')}</script>`,
-         {sourceCodeLocationInfo: true}) as {
-      childNodes: DefaultTreeNode[]
-    }).childNodes[0]!;
+const amdLoaderScriptTag = (parseFragment(
+                                `<script>
+    ${readFileSync(require.resolve('@polymer/esm-amd-loader'), 'utf-8')}
+    </script>`,
+                                {sourceCodeLocationInfo: true}) as {
+                             childNodes: DefaultTreeNode[]
+                           }).childNodes[0]!;
+
+const requireJsLoaderShimScriptTag = (parseFragment(
+                                          `<script>
+      ${readFileSync(require.resolve('./require-js-loader-shim'), 'utf-8')}
+      </script>`,
+                                          {sourceCodeLocationInfo: true}) as {
+                                       childNodes: DefaultTreeNode[]
+                                     }).childNodes[0]!;
+
+const regeneratorRuntimeScriptTag = (parseFragment(
+                                         `<script>
+      ${readFileSync(require.resolve('regenerator-runtime/runtime.js'))}
+      </script>`,
+                                         {sourceCodeLocationInfo: true}) as {
+                                      childNodes: DefaultTreeNode[]
+                                    }).childNodes[0]!;
 
 const injectAMDLoader = (ast: DefaultTreeNode) => {
   const head = getTags(ast, 'head')[0];
   if (head) {
     insertNode(head, 0, clone(amdLoaderScriptTag));
+  }
+};
+
+const injectRequireJSLoaderShim = (ast: DefaultTreeNode) => {
+  const head = getTags(ast, 'head')[0];
+  if (head) {
+    insertNode(head, 0, clone(requireJsLoaderShimScriptTag));
+  }
+};
+
+const injectRegeneratorRuntime = (ast: DefaultTreeNode) => {
+  const head = getTags(ast, 'head')[0];
+  if (head) {
+    insertNode(head, 0, clone(regeneratorRuntimeScriptTag));
   }
 };
