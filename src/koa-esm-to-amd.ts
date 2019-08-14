@@ -96,9 +96,6 @@ const browserCapabilitiesBasedPlugins =
       const userAgent = ctx.request.header['user-agent'] || '';
       const capabilities = browserCapabilities(userAgent);
       const plugins: BabelPluginItem[] = [];
-      if (!capabilities.has('modules')) {
-        plugins.push(...babelTransformModulesAmd);
-      }
       if (!capabilities.has('es2015')) {
         plugins.push(...babelTransformEs2015);
       }
@@ -110,6 +107,9 @@ const browserCapabilitiesBasedPlugins =
       }
       if (!capabilities.has('es2018')) {
         plugins.push(...babelTransformEs2018);
+      }
+      if (!capabilities.has('modules')) {
+        plugins.push(...babelTransformModulesAmd);
       }
       return plugins;
     };

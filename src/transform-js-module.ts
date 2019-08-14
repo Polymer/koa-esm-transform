@@ -12,8 +12,9 @@
  * http://polymer.github.io/PATENTS.txt
  */
 import {PluginItem, transformFromAstAsync} from '@babel/core';
-import {Node} from '@babel/types';
-
+import traverse, {NodePath} from '@babel/traverse';
+import template from '@babel/template';
+import {CallExpression, Node, isIdentifier, isFile, isProgram} from '@babel/types';
 
 import {Logger} from './support/logger';
 
@@ -22,5 +23,35 @@ export const transformJSModule =
         Promise<Node> => {
           const result =
               await transformFromAstAsync(ast, undefined, {ast: true, plugins});
-          return result && result.ast || ast;
+          if (result && result.ast) {
+            ast = result.ast;
+            let defineCallExpression: CallExpression|undefined = undefined;
+            // Check to see if the code in the AST has a define() call.  If not,
+            // we need to wrap it in one.
+            traverse(ast, {
+              CallExpression: (path: NodePath<CallExpression>) => {
+                const defineId = path.node.callee;
+                if (isIdentifier(defineId) && defineId.name === 'define') {
+                  defineCallExpression = path.node;
+                }
+              }
+            });
+            if (!defineCallExpression) {
+              let source;
+              if (isFile(ast)) {
+                ast = ast.program;
+              }
+              if (isProgram(ast)) {
+                source = ast.body;
+              } else {
+                source = ast;
+              }
+              return template.ast`
+                define([], function() {
+                  ${source}
+                });
+              `;
+            }
+          }
+          return ast;
         };

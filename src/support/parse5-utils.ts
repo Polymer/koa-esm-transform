@@ -54,6 +54,16 @@ export const getTextContent = (node: DefaultTreeNode): string => {
   return subtree.map(getTextContent).join('');
 };
 
+export const hasAttr = (element: DefaultTreeNode, name: string): boolean => {
+  if (isElement(element)) {
+    const attr = element.attrs.find(({name: attrName}) => attrName === name);
+    if (attr) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export const removeAttr = (element: DefaultTreeNode, name: string) => {
   if (!isElement(element)) {
     return;

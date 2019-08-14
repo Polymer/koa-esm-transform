@@ -19,9 +19,11 @@ import {resolve as resolveURL} from 'url';
 
 import {JSModuleSourceStrategy} from './koa-esm-to-amd';
 import {Logger} from './support/logger';
-import {getAttr, getTextContent, insertNode, nodeWalkAll, removeAttr, setTextContent} from './support/parse5-utils';
+import {getAttr, getTextContent, hasAttr, insertNode, nodeWalkAll, removeAttr, removeNode, setTextContent} from './support/parse5-utils';
 import {preserveSurroundingWhitespace} from './support/string-utils';
 import {transformJSModule} from './transform-js-module';
+
+const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 
 export const transformHTML = async(
     ast: DefaultTreeNode,
@@ -32,12 +34,17 @@ export const transformHTML = async(
     logger: Logger): Promise<DefaultTreeNode> => {
   const baseURL = getBaseURL(ast, url);
   let needAMDLoader = false;
-  for (const scriptTag of getExternalModuleScripts(ast)) {
-    const src = getAttr(scriptTag, 'src');
-    setTextContent(scriptTag, `define(['${src}']);`);
-    removeAttr(scriptTag, 'src');
-    removeAttr(scriptTag, 'type');
-    needAMDLoader = true;
+  if (babelPlugins.includes(transformModulesAmd)) {
+    for (const scriptTag of getExternalModuleScripts(ast)) {
+      const src = getAttr(scriptTag, 'src');
+      setTextContent(scriptTag, `define(['${src}']);`);
+      removeAttr(scriptTag, 'src');
+      removeAttr(scriptTag, 'type');
+      needAMDLoader = true;
+    }
+    for (const scriptTag of getNoModuleScripts(ast)) {
+      removeNode(scriptTag);
+    }
   }
   for (const scriptTag of getInlineModuleScripts(ast)) {
     const originalJS = getTextContent(scriptTag);
@@ -49,7 +56,7 @@ export const transformHTML = async(
                 await transformJSModule(ast, baseURL, babelPlugins, logger)));
     setTextContent(scriptTag, transformedJS);
     removeAttr(scriptTag, 'type');
-    needAMDLoader = true;
+    needAMDLoader = babelPlugins.includes(transformModulesAmd);
   }
   if (injectLoader && needAMDLoader) {
     injectAMDLoader(ast);
@@ -71,6 +78,9 @@ const getBaseURL = (ast: DefaultTreeNode, location: string): string => {
 
 const getBaseTag = (ast: DefaultTreeNode): DefaultTreeNode|undefined =>
     getTags(ast, 'base').shift();
+
+const getNoModuleScripts = (ast: DefaultTreeNode): DefaultTreeNode[] =>
+    getTags(ast, 'script').filter((node) => hasAttr(node, 'nomodule'));
 
 const getExternalModuleScripts = (ast: DefaultTreeNode): DefaultTreeNode[] =>
     getTags(ast, 'script')
