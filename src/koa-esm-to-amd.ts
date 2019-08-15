@@ -232,20 +232,15 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
       ctx.body = await htmlSourceStrategy(
           await getBodyAsString(ctx.body),
           (ast: Parse5Node) => transformHTML(
-              ast,
-              ctx.request.url,
-              jsSourceStrategy,
-              babelPlugins,
-              queryParam,
-              logger));
+              ast, jsSourceStrategy, babelPlugins, queryParam, logger));
     } else if (ctx.response.is('js')) {
       if (!queryParamPresent) {
         return;
       }
       ctx.body = await jsSourceStrategy(
           await getBodyAsString(ctx.body),
-          (ast: BabelNode) => transformJSModule(
-              ast, ctx.request.url, babelPlugins, queryParam, logger));
+          (ast: BabelNode) =>
+              transformJSModule(ast, babelPlugins, queryParam, logger));
     }
   };
 };

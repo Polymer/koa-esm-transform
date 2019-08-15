@@ -23,23 +23,20 @@ import {appendQueryParameter} from './support/url-utils';
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 
 export const transformJSModule = async(
-    ast: Node,
-    _url: string,
-    plugins: PluginItem[],
-    queryParam: string,
-    _logger: Logger): Promise<Node> => {
-  rewriteSpecifiers(
-      ast, (specifier) => appendQueryParameter(specifier, queryParam));
-  const result =
-      await transformFromAstAsync(ast, undefined, {ast: true, plugins});
-  if (result && result.ast) {
-    ast = result.ast;
-  }
-  if (containsPlugin(plugins, transformModulesAmd)) {
-    ast = ensureDefineWrapper(ast);
-  }
-  return ast;
-};
+    ast: Node, plugins: PluginItem[], queryParam: string, _logger: Logger):
+    Promise<Node> => {
+      rewriteSpecifiers(
+          ast, (specifier) => appendQueryParameter(specifier, queryParam));
+      const result =
+          await transformFromAstAsync(ast, undefined, {ast: true, plugins});
+      if (result && result.ast) {
+        ast = result.ast;
+      }
+      if (containsPlugin(plugins, transformModulesAmd)) {
+        ast = ensureDefineWrapper(ast);
+      }
+      return ast;
+    };
 
 const ensureDefineWrapper = (ast: Node): Node => {
   let defineCallExpression: CallExpression|undefined = undefined;

@@ -17,7 +17,6 @@ import cssSelect from 'css-select';
 import {parse5Adapter} from 'css-select-parse5-adapter';
 import {readFileSync} from 'fs';
 import {DefaultTreeElement, DefaultTreeNode, parseFragment} from 'parse5';
-import {resolve as resolveURL} from 'url';
 
 import {JSModuleSourceStrategy} from './koa-esm-to-amd';
 import {containsPlugin} from './support/babel-utils';
@@ -32,12 +31,10 @@ const transformRegenerator = require('@babel/plugin-transform-regenerator');
 
 export const transformHTML = async(
     ast: DefaultTreeNode,
-    url: string,
     jsModuleTransform: JSModuleSourceStrategy,
     babelPlugins: PluginItem[],
     queryParam: string,
     logger: Logger): Promise<DefaultTreeNode> => {
-  const baseURL = getBaseURL(ast, url);
   const isTransformingModulesAmd =
       containsPlugin(babelPlugins, transformModulesAmd);
   if (containsPlugin(babelPlugins, transformRegenerator)) {
@@ -49,13 +46,14 @@ export const transformHTML = async(
       removeNode(scriptTag);
     }
   }
-  for (const scriptTag of querySelectorAll('script[type=module,src]', ast)) {
-    setAttr(
-        scriptTag,
-        'src',
-        appendQueryParameter(getAttr(scriptTag, 'src'), queryParam));
+  for (const scriptTag of querySelectorAll('script[type=module][src]', ast)) {
     if (isTransformingModulesAmd) {
-      convertExternalModuleToInlineScriptWithDefine(scriptTag);
+      convertExternalModuleToInlineModule(scriptTag);
+    } else {
+      setAttr(
+          scriptTag,
+          'src',
+          appendQueryParameter(getAttr(scriptTag, 'src'), queryParam));
     }
   }
   for (const scriptTag of querySelectorAll(
@@ -66,30 +64,18 @@ export const transformHTML = async(
         await jsModuleTransform(
             originalJS,
             async (ast) => await transformJSModule(
-                ast, baseURL, babelPlugins, queryParam, logger)));
+                ast, babelPlugins, queryParam, logger)));
     setTextContent(scriptTag, transformedJS);
-    removeAttr(scriptTag, 'type');
+    if (isTransformingModulesAmd) {
+      removeAttr(scriptTag, 'type');
+    }
   }
   return ast;
 };
 
-const convertExternalModuleToInlineScriptWithDefine =
-    (ast: DefaultTreeElement) => {
-      setTextContent(ast, `define(['${getAttr(ast, 'src')}']);`);
-      removeAttr(ast, 'src');
-      removeAttr(ast, 'type');
-    };
-
-const getBaseURL = (ast: DefaultTreeNode, location: string): string => {
-  const baseTag = querySelector('base', ast);
-  if (!baseTag) {
-    return location;
-  }
-  const baseHref = getAttr(baseTag, 'href');
-  if (!baseHref) {
-    return location;
-  }
-  return resolveURL(location, baseHref);
+const convertExternalModuleToInlineModule = (ast: DefaultTreeElement) => {
+  setTextContent(ast, `import '${getAttr(ast, 'src')}';`);
+  removeAttr(ast, 'src');
 };
 
 const amdLoaderScriptTag = (parseFragment(
