@@ -94,6 +94,8 @@
     "@types/parse5": "^5.0.2",
     "browser-capabilities": "^1.1.4",
     "clone": "^2.1.2",
+    "css-select": "^2.0.2",
+    "css-select-parse5-adapter": "^1.0.0-pre.1",
     "get-stream": "^5.1.0",
     "minimatch": "^3.0.4",
     "parse5": "^5.1.0",

@@ -13,6 +13,8 @@
  */
 import {PluginItem} from '@babel/core';
 import clone from 'clone';
+import cssSelect from 'css-select';
+import {parse5Adapter} from 'css-select-parse5-adapter';
 import {readFileSync} from 'fs';
 import {DefaultTreeElement, DefaultTreeNode, parseFragment} from 'parse5';
 import {resolve as resolveURL} from 'url';
@@ -20,7 +22,7 @@ import {resolve as resolveURL} from 'url';
 import {JSModuleSourceStrategy} from './koa-esm-to-amd';
 import {containsPlugin} from './support/babel-utils';
 import {Logger} from './support/logger';
-import {getAttr, getTextContent, hasAttr, insertBefore, insertNode, nodeWalkAll, removeAttr, removeNode, setAttr, setTextContent} from './support/parse5-utils';
+import {getAttr, getTextContent, insertBefore, insertNode, removeAttr, removeNode, setAttr, setTextContent} from './support/parse5-utils';
 import {preserveSurroundingWhitespace} from './support/string-utils';
 import {appendQueryParameter} from './support/url-utils';
 import {transformJSModule} from './transform-js-module';
@@ -43,11 +45,11 @@ export const transformHTML = async(
   }
   if (isTransformingModulesAmd) {
     injectAMDLoader(ast);
-    for (const scriptTag of getNoModuleScripts(ast)) {
+    for (const scriptTag of querySelectorAll('script[nomodule]', ast)) {
       removeNode(scriptTag);
     }
   }
-  for (const scriptTag of getExternalModuleScripts(ast)) {
+  for (const scriptTag of querySelectorAll('script[type=module,src]', ast)) {
     setAttr(
         scriptTag,
         'src',
@@ -56,7 +58,8 @@ export const transformHTML = async(
       convertExternalModuleToInlineScriptWithDefine(scriptTag);
     }
   }
-  for (const scriptTag of getInlineModuleScripts(ast)) {
+  for (const scriptTag of querySelectorAll(
+           'script[type=module]:not(src)', ast)) {
     const originalJS = getTextContent(scriptTag);
     const transformedJS = preserveSurroundingWhitespace(
         originalJS,
@@ -78,7 +81,7 @@ const convertExternalModuleToInlineScriptWithDefine =
     };
 
 const getBaseURL = (ast: DefaultTreeNode, location: string): string => {
-  const baseTag = getBaseTag(ast);
+  const baseTag = querySelector('base', ast);
   if (!baseTag) {
     return location;
   }
@@ -88,24 +91,6 @@ const getBaseURL = (ast: DefaultTreeNode, location: string): string => {
   }
   return resolveURL(location, baseHref);
 };
-
-const getBaseTag = (ast: DefaultTreeNode): DefaultTreeElement|undefined =>
-    getTags(ast, 'base').shift();
-
-const getNoModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
-    getTags(ast, 'script').filter((node) => hasAttr(node, 'nomodule'));
-
-const getModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
-    getTags(ast, 'script').filter((node) => getAttr(node, 'type') === 'module');
-
-const getExternalModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
-    getModuleScripts(ast).filter((node) => hasAttr(node, 'src'));
-
-const getInlineModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
-    getModuleScripts(ast).filter((node) => !hasAttr(node, 'src'));
-
-const getTags = (ast: DefaultTreeNode, name: string): DefaultTreeElement[] =>
-    nodeWalkAll(ast, (node) => node.nodeName === name) as DefaultTreeElement[];
 
 const amdLoaderScriptTag = (parseFragment(
                                 `<script>
@@ -124,7 +109,7 @@ const regeneratorRuntimeScriptTag = (parseFragment(
                                     }).childNodes[0]!;
 
 const injectAMDLoader = (ast: DefaultTreeNode) => {
-  const firstModuleScriptTag: DefaultTreeElement = getModuleScripts(ast)[0];
+  const firstModuleScriptTag = querySelector('script[type=module]', ast);
   if (firstModuleScriptTag) {
     insertBefore(
         firstModuleScriptTag.parentNode,
@@ -132,15 +117,26 @@ const injectAMDLoader = (ast: DefaultTreeNode) => {
         clone(amdLoaderScriptTag));
     return;
   }
-  const head = getTags(ast, 'head')[0];
+  const head = querySelector('head', ast);
   if (head) {
     insertNode(head, 0, clone(amdLoaderScriptTag));
   }
 };
 
 const injectRegeneratorRuntime = (ast: DefaultTreeNode) => {
-  const head = getTags(ast, 'head')[0];
+  const head = querySelector('head', ast);
   if (head) {
     insertNode(head, 0, clone(regeneratorRuntimeScriptTag));
   }
 };
+
+const querySelector =
+    (query: cssSelect.Query, ast: DefaultTreeNode): DefaultTreeElement|
+    undefined => cssSelect.selectOne(query, ast, {adapter: parse5Adapter}) as
+        DefaultTreeElement ||
+    undefined;
+
+const querySelectorAll =
+    (query: cssSelect.Query, ast: DefaultTreeNode): DefaultTreeElement[] =>
+        cssSelect.selectAll(query, ast, {adapter: parse5Adapter}) as
+    DefaultTreeElement[];
