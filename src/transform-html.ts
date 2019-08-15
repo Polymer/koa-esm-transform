@@ -20,7 +20,7 @@ import {resolve as resolveURL} from 'url';
 import {JSModuleSourceStrategy} from './koa-esm-to-amd';
 import {containsPlugin} from './support/babel-utils';
 import {Logger} from './support/logger';
-import {getAttr, getTextContent, hasAttr, insertBefore, insertNode, nodeWalkAll, removeAttr, removeNode, setTextContent} from './support/parse5-utils';
+import {getAttr, getTextContent, hasAttr, insertBefore, insertNode, nodeWalkAll, removeAttr, removeNode, setAttr, setTextContent} from './support/parse5-utils';
 import {preserveSurroundingWhitespace} from './support/string-utils';
 import {appendQueryParameter} from './support/url-utils';
 import {transformJSModule} from './transform-js-module';
@@ -36,22 +36,24 @@ export const transformHTML = async(
     queryParam: string,
     logger: Logger): Promise<DefaultTreeNode> => {
   const baseURL = getBaseURL(ast, url);
+  const isTransformingModulesAmd =
+      containsPlugin(babelPlugins, transformModulesAmd);
   if (containsPlugin(babelPlugins, transformRegenerator)) {
     injectRegeneratorRuntime(ast);
   }
-  if (containsPlugin(babelPlugins, transformModulesAmd)) {
+  if (isTransformingModulesAmd) {
     injectAMDLoader(ast);
-  }
-  if (containsPlugin(babelPlugins, transformModulesAmd)) {
-    for (const scriptTag of getExternalModuleScripts(ast)) {
-      const src = getAttr(scriptTag, 'src');
-      setTextContent(
-          scriptTag, `define(['${appendQueryParameter(src, queryParam)}']);`);
-      removeAttr(scriptTag, 'src');
-      removeAttr(scriptTag, 'type');
-    }
     for (const scriptTag of getNoModuleScripts(ast)) {
       removeNode(scriptTag);
+    }
+  }
+  for (const scriptTag of getExternalModuleScripts(ast)) {
+    setAttr(
+        scriptTag,
+        'src',
+        appendQueryParameter(getAttr(scriptTag, 'src'), queryParam));
+    if (isTransformingModulesAmd) {
+      convertExternalModuleToInlineScriptWithDefine(scriptTag);
     }
   }
   for (const scriptTag of getInlineModuleScripts(ast)) {
@@ -67,6 +69,13 @@ export const transformHTML = async(
   }
   return ast;
 };
+
+const convertExternalModuleToInlineScriptWithDefine =
+    (ast: DefaultTreeElement) => {
+      setTextContent(ast, `define(['${getAttr(ast, 'src')}']);`);
+      removeAttr(ast, 'src');
+      removeAttr(ast, 'type');
+    };
 
 const getBaseURL = (ast: DefaultTreeNode, location: string): string => {
   const baseTag = getBaseTag(ast);

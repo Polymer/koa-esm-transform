@@ -16,8 +16,11 @@ import traverse, {NodePath} from '@babel/traverse';
 import template from '@babel/template';
 import {CallExpression, ExportAllDeclaration, ExportNamedDeclaration, Node, isIdentifier, isFile, isProgram, isStringLiteral, ImportDeclaration} from '@babel/types';
 
+import {containsPlugin} from './support/babel-utils';
 import {Logger} from './support/logger';
 import {appendQueryParameter} from './support/url-utils';
+
+const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 
 export const transformJSModule = async(
     ast: Node,
@@ -32,7 +35,10 @@ export const transformJSModule = async(
   if (result && result.ast) {
     ast = result.ast;
   }
-  return ensureDefineWrapper(ast);
+  if (containsPlugin(plugins, transformModulesAmd)) {
+    ast = ensureDefineWrapper(ast);
+  }
+  return ast;
 };
 
 const ensureDefineWrapper = (ast: Node): Node => {
