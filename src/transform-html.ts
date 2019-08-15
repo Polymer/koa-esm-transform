@@ -14,29 +14,39 @@
 import {PluginItem} from '@babel/core';
 import clone from 'clone';
 import {readFileSync} from 'fs';
-import {DefaultTreeNode, parseFragment} from 'parse5';
+import {DefaultTreeElement, DefaultTreeNode, parseFragment} from 'parse5';
 import {resolve as resolveURL} from 'url';
 
 import {JSModuleSourceStrategy} from './koa-esm-to-amd';
+import {containsPlugin} from './support/babel-utils';
 import {Logger} from './support/logger';
-import {getAttr, getTextContent, hasAttr, insertNode, nodeWalkAll, removeAttr, removeNode, setTextContent} from './support/parse5-utils';
+import {getAttr, getTextContent, hasAttr, insertBefore, insertNode, nodeWalkAll, removeAttr, removeNode, setTextContent} from './support/parse5-utils';
 import {preserveSurroundingWhitespace} from './support/string-utils';
+import {appendQueryParameter} from './support/url-utils';
 import {transformJSModule} from './transform-js-module';
 
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
+const transformRegenerator = require('@babel/plugin-transform-regenerator');
 
 export const transformHTML = async(
     ast: DefaultTreeNode,
     url: string,
     jsModuleTransform: JSModuleSourceStrategy,
     babelPlugins: PluginItem[],
-    injectLoader: boolean,
+    queryParam: string,
     logger: Logger): Promise<DefaultTreeNode> => {
   const baseURL = getBaseURL(ast, url);
-  if (babelPlugins.includes(transformModulesAmd)) {
+  if (containsPlugin(babelPlugins, transformRegenerator)) {
+    injectRegeneratorRuntime(ast);
+  }
+  if (containsPlugin(babelPlugins, transformModulesAmd)) {
+    injectAMDLoader(ast);
+  }
+  if (containsPlugin(babelPlugins, transformModulesAmd)) {
     for (const scriptTag of getExternalModuleScripts(ast)) {
       const src = getAttr(scriptTag, 'src');
-      setTextContent(scriptTag, `define(['${src}']);`);
+      setTextContent(
+          scriptTag, `define(['${appendQueryParameter(src, queryParam)}']);`);
       removeAttr(scriptTag, 'src');
       removeAttr(scriptTag, 'type');
     }
@@ -50,17 +60,10 @@ export const transformHTML = async(
         originalJS,
         await jsModuleTransform(
             originalJS,
-            async (ast) =>
-                await transformJSModule(ast, baseURL, babelPlugins, logger)));
+            async (ast) => await transformJSModule(
+                ast, baseURL, babelPlugins, queryParam, logger)));
     setTextContent(scriptTag, transformedJS);
     removeAttr(scriptTag, 'type');
-  }
-  // TODO(usergenic): Make this bit conditional on whether the babel plugins
-  // include the regenerator transform.
-  injectRegeneratorRuntime(ast);
-  if (injectLoader && babelPlugins.includes(transformModulesAmd)) {
-    injectRequireJSLoaderShim(ast);
-    injectAMDLoader(ast);
   }
   return ast;
 };
@@ -77,26 +80,23 @@ const getBaseURL = (ast: DefaultTreeNode, location: string): string => {
   return resolveURL(location, baseHref);
 };
 
-const getBaseTag = (ast: DefaultTreeNode): DefaultTreeNode|undefined =>
+const getBaseTag = (ast: DefaultTreeNode): DefaultTreeElement|undefined =>
     getTags(ast, 'base').shift();
 
-const getNoModuleScripts = (ast: DefaultTreeNode): DefaultTreeNode[] =>
+const getNoModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
     getTags(ast, 'script').filter((node) => hasAttr(node, 'nomodule'));
 
-const getExternalModuleScripts = (ast: DefaultTreeNode): DefaultTreeNode[] =>
-    getTags(ast, 'script')
-        .filter(
-            (node) =>
-                getAttr(node, 'type') === 'module' && !!getAttr(node, 'src'));
+const getModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
+    getTags(ast, 'script').filter((node) => getAttr(node, 'type') === 'module');
 
-const getInlineModuleScripts = (ast: DefaultTreeNode): DefaultTreeNode[] =>
-    getTags(ast, 'script')
-        .filter(
-            (node) =>
-                getAttr(node, 'type') === 'module' && !getAttr(node, 'src'));
+const getExternalModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
+    getModuleScripts(ast).filter((node) => hasAttr(node, 'src'));
 
-const getTags = (ast: DefaultTreeNode, name: string): DefaultTreeNode[] =>
-    nodeWalkAll(ast, (node) => node.nodeName === name);
+const getInlineModuleScripts = (ast: DefaultTreeNode): DefaultTreeElement[] =>
+    getModuleScripts(ast).filter((node) => !hasAttr(node, 'src'));
+
+const getTags = (ast: DefaultTreeNode, name: string): DefaultTreeElement[] =>
+    nodeWalkAll(ast, (node) => node.nodeName === name) as DefaultTreeElement[];
 
 const amdLoaderScriptTag = (parseFragment(
                                 `<script>
@@ -105,14 +105,6 @@ const amdLoaderScriptTag = (parseFragment(
                                 {sourceCodeLocationInfo: true}) as {
                              childNodes: DefaultTreeNode[]
                            }).childNodes[0]!;
-
-const requireJsLoaderShimScriptTag = (parseFragment(
-                                          `<script>
-      ${readFileSync(require.resolve('./require-js-loader-shim'), 'utf-8')}
-      </script>`,
-                                          {sourceCodeLocationInfo: true}) as {
-                                       childNodes: DefaultTreeNode[]
-                                     }).childNodes[0]!;
 
 const regeneratorRuntimeScriptTag = (parseFragment(
                                          `<script>
@@ -123,16 +115,17 @@ const regeneratorRuntimeScriptTag = (parseFragment(
                                     }).childNodes[0]!;
 
 const injectAMDLoader = (ast: DefaultTreeNode) => {
+  const firstModuleScriptTag: DefaultTreeElement = getModuleScripts(ast)[0];
+  if (firstModuleScriptTag) {
+    insertBefore(
+        firstModuleScriptTag.parentNode,
+        firstModuleScriptTag,
+        clone(amdLoaderScriptTag));
+    return;
+  }
   const head = getTags(ast, 'head')[0];
   if (head) {
     insertNode(head, 0, clone(amdLoaderScriptTag));
-  }
-};
-
-const injectRequireJSLoaderShim = (ast: DefaultTreeNode) => {
-  const head = getTags(ast, 'head')[0];
-  if (head) {
-    insertNode(head, 0, clone(requireJsLoaderShimScriptTag));
   }
 };
 

@@ -26,10 +26,14 @@ import {dynamicImportAmd} from './babel-plugin-dynamic-import-amd';
 import {rewriteImportMeta} from './babel-plugin-rewrite-import-meta';
 import {Logger, LogLevel, prefixedLogger} from './support/logger';
 import {removeFakeRootElements} from './support/parse5-utils';
+import {extractQueryParameter} from './support/url-utils';
 import {transformHTML} from './transform-html';
 import {transformJSModule} from './transform-js-module';
 
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
+const transformRegenerator = require('@babel/plugin-transform-regenerator');
+
+export const DEFAULT_QUERY_PARAM = '__esmToAmd';
 
 export const babelTransformModulesAmd: BabelPluginItem[] = [
   dynamicImportAmd,
@@ -57,10 +61,7 @@ export const babelTransformEs2015 = [
   require('@babel/plugin-transform-block-scoping'),
   require('@babel/plugin-transform-typeof-symbol'),
   require('@babel/plugin-transform-instanceof'),
-  [
-    require('@babel/plugin-transform-regenerator'),
-    {async: false, asyncGenerators: false}
-  ],
+  [transformRegenerator, {async: false, asyncGenerators: false}],
 ];
 
 export const babelTransformEs2016 = [
@@ -82,6 +83,7 @@ export type ContextualBabelPluginFunction = (ctx: Koa.Context) =>
 export type EsmToAmdOptions = {
   babelPlugins?: BabelPluginItem[]|ContextualBabelPluginFunction,
   exclude?: string[],
+  queryParam?: string,
   logger?: Logger|false,
   logLevel?: LogLevel,
 };
@@ -161,6 +163,7 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
       {} :
       prefixedLogger('[koa-esm-to-amd]', options.logger || console);
 
+  const queryParam = options.queryParam || DEFAULT_QUERY_PARAM;
   const exclude = options.exclude;
 
   const babelPluginsOption =
@@ -175,8 +178,25 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
           defaultJSSerializer(await transform(defaultJSParser(js)));
 
   return async(ctx: Koa.Context, next: Function): Promise<void> => {
+    // Check the URL for the query parameter that controls the middleware.
+    // Remove it from the URL before continuing to next middleware in the stack.
+    const {url: requestUrlSansQueryParam, value: queryParamValue} =
+        extractQueryParameter(ctx.request.url, queryParam);
+    const queryParamPresent = ctx.request.url !== requestUrlSansQueryParam;
+    if (queryParamPresent) {
+      ctx.request.url = requestUrlSansQueryParam;
+    }
+
     await next();
 
+    // If we specifically disabled the middleware in this request, we can just
+    // stop processing now.
+    if (queryParamValue === 'false') {
+      return;
+    }
+
+    // Check to see if there are any exclude patterns defined and if the route
+    // matches one.  If so, stop processing.
     if (exclude && exclude.length > 0) {
       if (exclude.some((pattern) => {
             const excludeMatch = minimatch(ctx.path, pattern);
@@ -208,9 +228,6 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
       return;
     }
 
-    // We'll inject the AMD loader only when we're transforming modules to AMD.
-    const injectLoader = babelPlugins.includes(transformModulesAmd);
-
     if (ctx.response.is('html')) {
       ctx.body = await htmlSourceStrategy(
           await getBodyAsString(ctx.body),
@@ -219,16 +236,16 @@ export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
               ctx.request.url,
               jsSourceStrategy,
               babelPlugins,
-              injectLoader,
+              queryParam,
               logger));
     } else if (ctx.response.is('js')) {
-      if (!ctx.querystring.includes('__esmtoamd')) {
+      if (!queryParamPresent) {
         return;
       }
       ctx.body = await jsSourceStrategy(
           await getBodyAsString(ctx.body),
-          (ast: BabelNode) =>
-              transformJSModule(ast, ctx.request.url, babelPlugins, logger));
+          (ast: BabelNode) => transformJSModule(
+              ast, ctx.request.url, babelPlugins, queryParam, logger));
     }
   };
 };

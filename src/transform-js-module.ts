@@ -14,44 +14,91 @@
 import {PluginItem, transformFromAstAsync} from '@babel/core';
 import traverse, {NodePath} from '@babel/traverse';
 import template from '@babel/template';
-import {CallExpression, Node, isIdentifier, isFile, isProgram} from '@babel/types';
+import {CallExpression, ExportAllDeclaration, ExportNamedDeclaration, Node, isIdentifier, isFile, isProgram, isStringLiteral, ImportDeclaration} from '@babel/types';
 
 import {Logger} from './support/logger';
+import {appendQueryParameter} from './support/url-utils';
 
-export const transformJSModule =
-    async(ast: Node, _url: string, plugins: PluginItem[], _logger: Logger):
-        Promise<Node> => {
-          const result =
-              await transformFromAstAsync(ast, undefined, {ast: true, plugins});
-          if (result && result.ast) {
-            ast = result.ast;
-            let defineCallExpression: CallExpression|undefined = undefined;
-            // Check to see if the code in the AST has a define() call.  If not,
-            // we need to wrap it in one.
-            traverse(ast, {
-              CallExpression: (path: NodePath<CallExpression>) => {
-                const defineId = path.node.callee;
-                if (isIdentifier(defineId) && defineId.name === 'define') {
-                  defineCallExpression = path.node;
-                }
-              }
-            });
-            if (!defineCallExpression) {
-              let source;
-              if (isFile(ast)) {
-                ast = ast.program;
-              }
-              if (isProgram(ast)) {
-                source = ast.body;
-              } else {
-                source = ast;
-              }
-              return template.ast`
-                define([], function() {
-                  ${source}
-                });
-              `;
+export const transformJSModule = async(
+    ast: Node,
+    _url: string,
+    plugins: PluginItem[],
+    queryParam: string,
+    _logger: Logger): Promise<Node> => {
+  rewriteSpecifiers(
+      ast, (specifier) => appendQueryParameter(specifier, queryParam));
+  const result =
+      await transformFromAstAsync(ast, undefined, {ast: true, plugins});
+  if (result && result.ast) {
+    ast = result.ast;
+  }
+  return ensureDefineWrapper(ast);
+};
+
+const ensureDefineWrapper = (ast: Node): Node => {
+  let defineCallExpression: CallExpression|undefined = undefined;
+  // Check to see if the code in the AST has a define() call.  If not,
+  // we need to wrap it in one.
+  traverse(ast, {
+    CallExpression: (path: NodePath<CallExpression>) => {
+      const defineId = path.node.callee;
+      if (isIdentifier(defineId) && defineId.name === 'define') {
+        defineCallExpression = path.node;
+      }
+    }
+  });
+  if (defineCallExpression) {
+    return ast;
+  }
+  let source;
+  if (isFile(ast)) {
+    ast = ast.program;
+  }
+  if (isProgram(ast)) {
+    source = ast.body;
+  } else {
+    source = ast;
+  }
+  return template.ast`
+        define([], function() {
+          ${source}
+        });` as Node;
+};
+
+const rewriteSpecifiers =
+    (ast: Node, callback: (specifier: string) => string | undefined) => {
+      const importExportDeclaration = {
+        enter(path: NodePath<ImportDeclaration|ExportAllDeclaration|
+                             ExportNamedDeclaration>) {
+          if (path.node && path.node.source &&
+              path.node.source.type === 'StringLiteral') {
+            const specifier = path.node.source.value;
+            const rewrittenSpecifier = callback(specifier);
+            if (rewrittenSpecifier) {
+              path.node.source.value = rewrittenSpecifier;
             }
           }
-          return ast;
-        };
+        }
+      };
+      traverse(ast, {
+        ImportDeclaration: importExportDeclaration,
+        ExportAllDeclaration: importExportDeclaration,
+        ExportNamedDeclaration: importExportDeclaration,
+        CallExpression: {
+          enter(path) {
+            const specifierStringLiteral = path.node && path.node.callee &&
+                    path.node.callee.type === 'Import' &&
+                    path.node.arguments.length === 1 ?
+                path.node.arguments[0] :
+                undefined;
+            if (isStringLiteral(specifierStringLiteral)) {
+              const specifier = specifierStringLiteral.value;
+              const rewrittenSpecifier = callback(specifier);
+              if (typeof rewrittenSpecifier === 'string') {
+                specifierStringLiteral.value = rewrittenSpecifier;
+              }
+            }
+          }
+        }
+      });
+    };
