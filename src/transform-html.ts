@@ -18,7 +18,7 @@ import {parse5Adapter} from 'css-select-parse5-adapter';
 import {readFileSync} from 'fs';
 import {DefaultTreeElement, DefaultTreeNode, parseFragment} from 'parse5';
 
-import {JSModuleSourceStrategy} from './koa-esm-to-amd';
+import {JSModuleSourceStrategy} from './koa-esm-transform';
 import {containsPlugin} from './support/babel-utils';
 import {Logger} from './support/logger';
 import {getAttr, getTextContent, insertBefore, insertNode, removeAttr, removeNode, setAttr, setTextContent} from './support/parse5-utils';

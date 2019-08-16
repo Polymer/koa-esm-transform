@@ -1,8 +1,8 @@
 {
-  "name": "koa-esm-to-amd",
+  "name": "koa-esm-transform",
   "version": "1.0.0-pre.1",
   "description": "",
-  "main": "lib/koa-esm-to-amd.js",
+  "main": "lib/koa-esm-transform.js",
   "files": [
     "lib/*",
     "!lib/test"

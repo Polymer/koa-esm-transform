@@ -158,10 +158,10 @@ const defaultJSSerializer = (ast: BabelNode): string =>
       retainLines: true,
     }).code;
 
-export const esmToAmd = (options: EsmToAmdOptions = {}): Koa.Middleware => {
+export const esmTransform = (options: EsmToAmdOptions = {}): Koa.Middleware => {
   const logger = options.logger === false ?
       {} :
-      prefixedLogger('[koa-esm-to-amd]', options.logger || console);
+      prefixedLogger('[koa-esm-transform]', options.logger || console);
 
   const queryParam = options.queryParam || DEFAULT_QUERY_PARAM;
   const exclude = options.exclude;

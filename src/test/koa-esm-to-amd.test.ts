@@ -1,7 +1,7 @@
 import request from 'supertest';
 import test from 'tape';
 
-import {DEFAULT_QUERY_PARAM, esmToAmd} from '../koa-esm-to-amd';
+import {DEFAULT_QUERY_PARAM, esmTransform} from '../koa-esm-transform';
 
 import {createAndServe, squeeze, testLogger} from './test-utils';
 
@@ -10,7 +10,7 @@ test('transforms stuff', async (t) => {
   const logger = testLogger();
   createAndServe(
       {
-        middleware: [esmToAmd({logger, logLevel: 'debug'})],
+        middleware: [esmTransform({logger, logLevel: 'debug'})],
         routes: {
           '/my-module.js': `import * as x from './x.js';`,
           '/my-page.html': `

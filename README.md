@@ -1,6 +1,6 @@
-# koa-esm-to-amd
+# koa-esm-transform
 
-Middleware for Koa servers that transforms standard JavaScript modules to AMD modules (it inlines the loader script `@polymer/esm-amd-loader` into the HTML), for use with older browsers that don't support modules natively.  
+Middleware for Koa servers that transforms standard JavaScript modules to earlier versions of JavaScript and/or AMD modules (it inlines the loader script `@polymer/esm-amd-loader` into the HTML), for use with older browsers.  
 
 Consider an HTML file containing the following inline JavaScript module:
 
