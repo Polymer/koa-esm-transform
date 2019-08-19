@@ -11,7 +11,7 @@
  * subject to an additional IP rights grant found at
  * http://polymer.github.io/PATENTS.txt
  */
-import {PluginItem} from '@babel/core';
+import {PluginItem, transformFileSync as babelTransformFileSync} from '@babel/core';
 import clone from 'clone';
 import cssSelect from 'css-select';
 import {parse5Adapter} from 'css-select-parse5-adapter';
@@ -26,6 +26,8 @@ import {preserveSurroundingWhitespace} from './support/string-utils';
 import {appendQueryParameter} from './support/url-utils';
 import {transformJSModule} from './transform-js-module';
 
+const babelPresetMinify =
+    require('babel-preset-minify')({}, {simplifyComparisons: false});
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 const transformRegenerator = require('@babel/plugin-transform-regenerator');
 
@@ -88,8 +90,10 @@ const amdLoaderScriptTag = (parseFragment(
 
 const regeneratorRuntimeScriptTag = (parseFragment(
                                          `<script>
-      ${readFileSync(require.resolve('regenerator-runtime/runtime.js'))}
-      </script>`,
+    ${babelTransformFileSync(require.resolve('regenerator-runtime'), {
+                                           presets: [babelPresetMinify]
+                                         })!.code}
+    </script>`,
                                          {sourceCodeLocationInfo: true}) as {
                                       childNodes: DefaultTreeNode[]
                                     }).childNodes[0]!;
