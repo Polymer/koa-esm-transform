@@ -14,6 +14,7 @@
 import {Server} from 'http';
 import Koa from 'koa';
 import route from 'koa-route';
+import {getPort} from 'portfinder';
 import {Logger} from '../support/logger';
 
 export type AppOptions = {
@@ -50,14 +51,22 @@ export const createAndServe =
     async (options: AppOptions, callback: (server: Server) => void) =>
         serveApp(createApp(options), callback);
 
-export const serveApp =
-    async (app: Koa, callback: (server: Server) => void) => {
-  const port = process.env.PORT || 3000;
-  const server =
-      app.listen(port).on('error', (e) => `ERROR: ${console.log(e)}`);
-  await callback(server);
-  await server.close();
-};
+export const serveApp = async(app: Koa, callback: (server: Server) => void):
+    Promise<void> => new Promise(
+        (resolve, reject) => getPort(
+            {port: parseInt(process.env.PORT || '3000')},
+            (err?: Error, port?: number) => {
+              if (err) {
+                reject(err);
+              }
+              const server =
+                  app.listen(port)
+                      .on('error', reject)
+                      .on('listening', async () => {
+                        await callback(server);
+                        server.close((err) => err ? reject(err) : resolve());
+                      });
+            }));
 
 export type TestLogger = Logger&{
   debugs: unknown[][],

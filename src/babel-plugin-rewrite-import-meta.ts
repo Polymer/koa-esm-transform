@@ -13,11 +13,9 @@
  */
 
 import importMetaSyntax from '@babel/plugin-syntax-import-meta';
-import template from '@babel/template';
+import {ast} from '@babel/template';
 import {NodePath} from '@babel/traverse';
-import {Program, MetaProperty} from '@babel/types';
-
-const ast = template.ast;
+import {MetaProperty, Program} from '@babel/types';
 
 /**
  * Rewrites `import.meta`[1] into an import for a module named "meta". It is

@@ -13,11 +13,9 @@
  */
 
 import dyanamicImportSyntax from '@babel/plugin-syntax-dynamic-import';
+import {ast} from '@babel/template';
 import {NodePath} from '@babel/traverse';
 import {CallExpression, Identifier, Program, Statement} from '@babel/types';
-import template from '@babel/template';
-
-const ast = template.ast;
 
 /**
  * Rewrites dynamic import() calls to AMD async require() calls.
@@ -61,19 +59,21 @@ export const dynamicImportAmd = {
 
       // Inject the import of "require"
       const statements = path.node.body as Statement[];
-      statements.unshift(ast`import * as ${requireId} from 'require';`);
+      statements.unshift(ast
+                         `import * as ${requireId} from 'require';`);
 
-      // Transform the dynamic import callsites
-      for (const importPath of dynamicImports) {
-        const specifier = importPath.node.arguments[0];
-        // Call as `require.default` because the AMD transformer that we assume
-        // is running next will rewrite `require` from a function to a module
-        // object with the function at `default`.
-        importPath.replaceWith(ast`(
+                         // Transform the dynamic import callsites
+                         for (const importPath of dynamicImports) {
+                           const specifier = importPath.node.arguments[0];
+                           // Call as `require.default` because the AMD
+                           // transformer that we assume is running next will
+                           // rewrite `require` from a function to a module
+                           // object with the function at `default`.
+                           importPath.replaceWith(ast`(
           new Promise((res, rej) => ${requireId}.default([${
-            specifier}], res, rej))
+                               specifier}], res, rej))
         )`);
-      }
+                         }
     },
   },
 };

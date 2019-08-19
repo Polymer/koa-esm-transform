@@ -48,6 +48,7 @@
     "depcheck": "^0.8.3",
     "koa": "^2.7.0",
     "koa-route": "^3.2.0",
+    "portfinder": "^1.0.22",
     "rimraf": "^2.6.3",
     "source-map-support": "^0.5.13",
     "supertest": "^4.0.2",

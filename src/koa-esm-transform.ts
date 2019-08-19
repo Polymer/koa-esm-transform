@@ -33,7 +33,7 @@ import {transformJSModule} from './transform-js-module';
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 const transformRegenerator = require('@babel/plugin-transform-regenerator');
 
-export const DEFAULT_QUERY_PARAM = '__esmToAmd';
+export const DEFAULT_QUERY_PARAM = '__esmTransform';
 
 export const babelTransformModulesAmd: BabelPluginItem[] = [
   dynamicImportAmd,
@@ -80,11 +80,38 @@ export const babelTransformEs2018 = [
 export type ContextualBabelPluginFunction = (ctx: Koa.Context) =>
     BabelPluginItem[];
 
-export type EsmToAmdOptions = {
+/**
+ * Options for overriding default behavior of the middleware.
+ */
+export type Options = {
+  /**
+   * Defines the babel transform plugins to compile JavaScript modules with. The
+   * default behavior of the middleware is to use a Function that evaluates the
+   * capabilities of the browser (identified by the user-agent header) to select
+   * the transform plugins.
+   */
   babelPlugins?: BabelPluginItem[]|ContextualBabelPluginFunction,
+  /**
+   * Minimatch compatible patterns or exact string matches of request paths to
+   * exclude from processing by the middleware.
+   */
   exclude?: string[],
+  /**
+   * The string value to append to URLs for JavaScript modules to identify them
+   * to the middleware for processing.  The default parameter is
+   * `__esmTransform`. Note that the middleware strips this parameter off the
+   * URL before passing the context to the downstream server.
+   */
   queryParam?: string,
+  /**
+   * Use an object other than `console` for logging.  To disable logging
+   * altogether, set to `false`.
+   */
   logger?: Logger|false,
+  /**
+   * Set the minimum level for events to log.  Possible values `debug`, `info`,
+   * `warn`, `error`.  Defaults to `info`.
+   */
   logLevel?: LogLevel,
 };
 
@@ -158,7 +185,7 @@ const defaultJSSerializer = (ast: BabelNode): string =>
       retainLines: true,
     }).code;
 
-export const esmTransform = (options: EsmToAmdOptions = {}): Koa.Middleware => {
+export const esmTransform = (options: Options = {}): Koa.Middleware => {
   const logger = options.logger === false ?
       {} :
       prefixedLogger('[koa-esm-transform]', options.logger || console);
