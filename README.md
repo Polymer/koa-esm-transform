@@ -19,10 +19,8 @@ The koa-esm-to-amd middleware would transform that HTML code to something like t
 // which adds the `define` function used below.
 </script>
 <script>
-define(["./some-module.js"], function (_someModule) {
-  "use strict";
-
-  (0, _someModule.someFunction)();
+define(["./some-module.js"], function (someModule) {
+  someModule.someFunction();
 });
 </script>
 ```
@@ -35,9 +33,9 @@ Note: HTML and JavaScript are parsed on every request for those content-types, i
 
 By default, a set of babel transform plugins are chosen based on the known capabilities of the browser/user-agent identified in the Koa Context for the request.
 
-When downstream server returns HTML content, it is scanned for module script tags (e.g. `<script type="module">`).  Any `src` attribute values are appended with the `__esmTransform` queryparameter.
+When the downstream server returns HTML content, it is scanned for module script tags (e.g. `<script type="module">`).  Any `src` attribute values are appended with the `__esmTransform` query parameter.  The query parameter is added because the middleware needs to distinguish between scripts that are being imported as a module vs a traditional script and this can't necessarily be determined by looking at the script itself.
 
-Inline module script content and URLs with the `__esmTransform` queryparameter have their `import` specifiers appended with the `__esmTransform` to indicate the requested content should be treated as a module and compiled with the selected babel plugins.
+Inline module script content and URLs with the `__esmTransform` query parameter have their `import` specifiers appended with the `__esmTransform` to indicate the requested content should be treated as a module and compiled with the selected babel plugins.
 
 Depending on plugins being used, certain support scripts will also be inlined into the HTML, such as `@polymer/esm-amd-loader` and `regenerator-runtime`.
 
@@ -45,6 +43,6 @@ Depending on plugins being used, certain support scripts will also be inlined in
 
 - `babelPlugins`: Either an Array of babel plugins (e.g. `[require('@babel/plugin-transform-modules-amd')]`) or a Function that takes a Koa Context and returns an Array of babel plugins `(ctx) => []`.  Providing a value for this option will override the default behavior of the middleware's capabilities-based babel plugin selection.
 - `exclude`: An array of requested paths or [minimatch](https://www.npmjs.com/package/minimatch) based patterns to match requested paths that should be excluded from any process/rewriting by the middleware.
-- `queryParam`: You can redefine the appended queryparameter string from `__esmTransform` as something else.
+- `queryParam`: You can redefine the appended query parameter string from `__esmTransform` as something else.
 - `logger`: Middleware will call `debug`, `info`, `warn` and `error` methods on `console` to log events.  If you use a different logger for your application, provide it here.
--`logLevel`: Set a minimum level for events to be logged to override the default level of `info`.
+- `logLevel`: Set a minimum level for events to be logged to override the default level of `info`.
