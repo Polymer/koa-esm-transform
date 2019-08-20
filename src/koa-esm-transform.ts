@@ -212,7 +212,8 @@ export const esmTransform = (options: Options = {}): Koa.Middleware => {
 
   return async(ctx: Koa.Context, next: Function): Promise<void> => {
     // Check the URL for the query parameter that controls the middleware.
-    // Remove it from the URL before continuing to next middleware in the stack.
+    // Remove it from the URL before continuing to next middleware in the
+    // stack.
     const {url: requestUrlSansQueryParam, value: queryParamValue} =
         extractQueryParameter(ctx.request.url, queryParam);
     const queryParamPresent = ctx.request.url !== requestUrlSansQueryParam;
@@ -222,14 +223,14 @@ export const esmTransform = (options: Options = {}): Koa.Middleware => {
 
     await next();
 
-    // If we specifically disabled the middleware in this request, we can just
-    // stop processing now.
+    // If we specifically disabled the middleware in this request, we can
+    // just stop processing now.
     if (queryParamValue === 'false') {
       return;
     }
 
-    // Check to see if there are any exclude patterns defined and if the route
-    // matches one.  If so, stop processing.
+    // Check to see if there are any exclude patterns defined and if the
+    // route matches one.  If so, stop processing.
     if (exclude && exclude.length > 0) {
       if (exclude.some((pattern) => {
             const excludeMatch = minimatch(ctx.path, pattern);
@@ -248,9 +249,9 @@ export const esmTransform = (options: Options = {}): Koa.Middleware => {
         babelPluginsOption(ctx) :
         babelPluginsOption;
 
-    // If we aren't going to be transforming anything (i.e. the babel plugins
-    // set is empty), then we can just exit the middleware now as next() has
-    // already been called.
+    // If we aren't going to be transforming anything (i.e. the babel
+    // plugins set is empty), then we can just exit the middleware now as
+    // next() has already been called.
     if (babelPlugins.length === 0) {
       return;
     }
@@ -262,21 +263,47 @@ export const esmTransform = (options: Options = {}): Koa.Middleware => {
     }
 
     if (ctx.response.is('html')) {
-      ctx.body = await htmlSourceStrategy(
-          await getBodyAsString(ctx.body),
-          (ast: Parse5Node) => transformHTML(
-              ast, jsSourceStrategy, babelPlugins, queryParam, logger));
+      const html = await getBodyAsString(ctx.body);
+      try {
+        ctx.body = await htmlSourceStrategy(
+            html,
+            (ast: Parse5Node) => transformHTML(
+                ctx.request.url,
+                ast,
+                jsSourceStrategy,
+                babelPlugins,
+                queryParam,
+                logger));
+      } catch (error) {
+        ctx.body = html;
+        logger.error &&
+            logger.error(
+                `Unable to transform HTML content at "${
+                    ctx.request.url}" due to`,
+                error);
+      }
     } else if (ctx.response.is('js')) {
       if (!queryParamPresent) {
         return;
       }
-      ctx.body = await jsSourceStrategy(
-          await getBodyAsString(ctx.body),
-          (ast: BabelNode) =>
-              transformJSModule(ast, babelPlugins, queryParam, logger));
+      const js = await getBodyAsString(ctx.body);
+      try {
+        ctx.body = await jsSourceStrategy(
+            js,
+            (ast: BabelNode) =>
+                transformJSModule(ast, babelPlugins, queryParam, logger));
+      } catch (error) {
+        ctx.body = js;
+        logger.error &&
+            logger.error(
+                `Unable to transform module script at "${
+                    ctx.request.url}" due to`,
+                error);
+      }
     }
   };
 };
+
 
 // TODO(usergenic): This should probably be published as a separate npm package.
 const getBodyAsString = async(body: Buffer|Stream|string): Promise<string> => {

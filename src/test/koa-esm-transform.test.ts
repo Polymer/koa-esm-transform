@@ -330,3 +330,45 @@ test('transform module scripts based on user agent', async (t) => {
             'should transform the module content in .html files when modules supported (opera 48)');
       });
 });
+
+test('when the parsers encounter invalid code', async (t) => {
+  t.plan(3);
+  const logger = testLogger();
+  await createAndServe(
+      {
+        middleware:
+            [esmTransform({babelPlugins: [transformModulesAmd], logger})],
+        routes: {
+          '/my-broken-page.html': `
+            <script type="module">
+              import is broken './my-broken-module.js';
+            </script>
+          `,
+          '/my-broken-module.js': `
+              this is not valid javascript too();
+          `,
+        },
+      },
+      async (server) => {
+        const html =
+            squeeze((await request(server).get('/my-broken-page.html')).text);
+        t.equal(html, squeeze(`
+            <script>${amdLoaderScript}</script>
+            <script type="module">
+              import is broken './my-broken-module.js';
+            </script>
+        `));
+        const js = squeeze((await request(server).get(
+                                `/my-broken-module.js?${defaultQueryParam}`))
+                               .text);
+        t.equal(js, squeeze(`
+          this is not valid javascript too();
+          `));
+        // TODO(usergenic): Not clear on any scenario that would cause parse5 to
+        // throw during parse, so going to skip that test case here for now.
+        t.deepEqual(logger.errors.map((e) => e.join(' ')), [
+          '[koa-esm-transform] Unable to transform inline module script tag at "/my-broken-page.html" due to SyntaxError: Unexpected token (2:24)',
+          '[koa-esm-transform] Unable to transform module script at "/my-broken-module.js" due to SyntaxError: Unexpected token, expected ";" (2:19)',
+        ]);
+      });
+});

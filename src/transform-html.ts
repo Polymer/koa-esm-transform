@@ -32,6 +32,7 @@ const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 const transformRegenerator = require('@babel/plugin-transform-regenerator');
 
 export const transformHTML = async(
+    url: string,
     ast: DefaultTreeNode,
     jsModuleTransform: JSModuleSourceStrategy,
     babelPlugins: PluginItem[],
@@ -61,15 +62,22 @@ export const transformHTML = async(
   for (const scriptTag of querySelectorAll(
            'script[type=module]:not(src)', ast)) {
     const originalJS = getTextContent(scriptTag);
-    const transformedJS = preserveSurroundingWhitespace(
-        originalJS,
-        await jsModuleTransform(
-            originalJS,
-            async (ast) => await transformJSModule(
-                ast, babelPlugins, queryParam, logger)));
-    setTextContent(scriptTag, transformedJS);
-    if (isTransformingModulesAmd) {
-      removeAttr(scriptTag, 'type');
+    try {
+      const transformedJS = preserveSurroundingWhitespace(
+          originalJS,
+          await jsModuleTransform(
+              originalJS,
+              async (ast) => await transformJSModule(
+                  ast, babelPlugins, queryParam, logger)));
+      setTextContent(scriptTag, transformedJS);
+      if (isTransformingModulesAmd) {
+        removeAttr(scriptTag, 'type');
+      }
+    } catch (error) {
+      logger.error &&
+          logger.error(
+              `Unable to transform inline module script tag at "${url}" due to`,
+              error);
     }
   }
   return ast;
