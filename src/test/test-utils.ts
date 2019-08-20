@@ -89,8 +89,8 @@ export const testLogger = (): TestLogger => {
   return logger;
 };
 
-export const squeeze = (html: string): string => html.replace(/\s+/mg, ' ')
-                                                     .replace(/>\s</g, '><')
-                                                     .replace(/>\s/g, '>\n')
-                                                     .replace(/\s</g, '\n<')
-                                                     .trim();
+export const squeeze = (html: string): string =>
+    html.replace(/\s+/mg, ' ')
+        .replace(/([a-z0-9\/]>)\s*/g, '$1\n')
+        .replace(/\s*(<[a-z0-9\/])/g, '\n$1')
+        .trim();

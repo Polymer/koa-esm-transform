@@ -15,9 +15,14 @@ import test from 'tape';
 
 import {squeeze} from './test-utils';
 
-test('squeeze will not inject newlines where no-spaces exist', (t) => {
+test('squeeze will inject newlines around most angle-brackets', (t) => {
   t.plan(1);
-  t.equal(squeeze('<h1>Hello</h1>'), '<h1>Hello</h1>');
+  t.equal(squeeze('<h1>Hello</h1>'), '<h1>\nHello\n</h1>');
+});
+
+test('squeeze will not inject newlines around comparator brackets', (t) => {
+  t.plan(1);
+  t.equal(squeeze('something <= otherthing'), 'something <= otherthing');
 });
 
 test('squeeze will shrink multiple spaces to single spaces', (t) => {

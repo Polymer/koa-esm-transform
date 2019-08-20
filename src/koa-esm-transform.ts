@@ -33,7 +33,7 @@ import {transformJSModule} from './transform-js-module';
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
 const transformRegenerator = require('@babel/plugin-transform-regenerator');
 
-export const DEFAULT_QUERY_PARAM = '__esmTransform';
+export const defaultQueryParam = '__esmTransform';
 
 export const babelTransformModulesAmd: BabelPluginItem[] = [
   dynamicImportAmd,
@@ -190,7 +190,7 @@ export const esmTransform = (options: Options = {}): Koa.Middleware => {
       {} :
       prefixedLogger('[koa-esm-transform]', options.logger || console);
 
-  const queryParam = options.queryParam || DEFAULT_QUERY_PARAM;
+  const queryParam = options.queryParam || defaultQueryParam;
   const exclude = options.exclude;
 
   const babelPluginsOption =
