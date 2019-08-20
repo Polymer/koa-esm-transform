@@ -47,4 +47,4 @@ Depending on plugins being used, certain support scripts will also be inlined in
 - `exclude`: An array of requested paths or [minimatch](https://www.npmjs.com/package/minimatch) based patterns to match requested paths that should be excluded from any process/rewriting by the middleware.
 - `queryParam`: You can redefine the appended queryparameter string from `__esmTransform` as something else.
 - `logger`: Middleware will call `debug`, `info`, `warn` and `error` methods on `console` to log events.  If you use a different logger for your application, provide it here.
- -`logLevel`: Set a minimum level for events to be logged to override the default level of `info`.
+-`logLevel`: Set a minimum level for events to be logged to override the default level of `info`.
