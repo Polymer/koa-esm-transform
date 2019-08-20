@@ -110,7 +110,7 @@ test('inline regenerator-runtime when the regenerator plugin used', async (t) =>
 });
 
 test('exclude option', async (t) => {
-  t.plan(2);
+  t.plan(3);
   const logger = testLogger();
   await createAndServe(
       {
