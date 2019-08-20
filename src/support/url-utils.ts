@@ -14,6 +14,15 @@
 
 import {format, parse} from 'url';
 
+export const relativizeSrc = (src: string): string => {
+  const url = parse(src);
+  if (!url.protocol && !url.host && !src.startsWith('/') &&
+      !src.startsWith('.')) {
+    return `./${src}`;
+  }
+  return src;
+};
+
 export const appendQueryParameter =
     (url: string, param: string, value?: string): string => {
       const parsed = parse(url);

@@ -16,6 +16,7 @@ import request from 'supertest';
 import test from 'tape';
 
 import {defaultQueryParam, esmTransform} from '../koa-esm-transform';
+
 import {createAndServe, squeeze, testLogger} from './test-utils';
 
 const transformModulesAmd = require('@babel/plugin-transform-modules-amd');
@@ -42,8 +43,8 @@ test('inline AMD loader only when AMD transform used', async (t) => {
       },
       async (server) => {
         const html = squeeze((await request(server).get('/my-page.html')).text);
-        const includesInlinedAMDLoader =
-            html.includes(squeeze(amdLoaderScript));
+        const includesInlinedAMDLoader = html.includes(squeeze(`
+            <script>${amdLoaderScript}</script>`));
         if (includesInlinedAMDLoader) {
           console.log(
               'Expected page to NOT include inlined AMD loader:\n', html);
@@ -60,8 +61,8 @@ test('inline AMD loader only when AMD transform used', async (t) => {
       },
       async (server) => {
         const html = squeeze((await request(server).get('/my-page.html')).text);
-        const includesInlinedAMDLoader =
-            html.includes(squeeze(amdLoaderScript));
+        const includesInlinedAMDLoader = html.includes(squeeze(`
+            <script>${amdLoaderScript}</script>`));
         if (!includesInlinedAMDLoader) {
           console.log('Expected page to include inlined AMD loader:\n', html);
         }
@@ -159,6 +160,66 @@ test('exclude option', async (t) => {
       });
 });
 
+test('inject AMD loader right before the first module script', async (t) => {
+  t.plan(2);
+  await createAndServe(
+      {
+        middleware: [esmTransform(
+            {logger: testLogger(), babelPlugins: [transformModulesAmd]})],
+        routes: {
+          '/my-page.html': `
+            <script src="normal-script.js"></script>
+            <script src="module-script.js" type="module"></script>`
+        },
+      },
+      async (server) => {
+        const html = squeeze((await request(server).get('/my-page.html')).text);
+        const injectRightBeforeModuleScript = html.includes(squeeze(`
+          <script src="normal-script.js"></script>
+          <script>${amdLoaderScript}</script>
+          <script>
+            define(['./module-script.js?${defaultQueryParam}'],
+              function (_moduleScript) {"use strict";});
+          </script>
+        `));
+        if (!injectRightBeforeModuleScript) {
+          console.log(
+              'Expected the AMD loader script to be injected right before first module script:\n',
+              html);
+        }
+        t.assert(
+            injectRightBeforeModuleScript,
+            'should inject AMD loader right before the first module script');
+      });
+  await createAndServe(
+      {
+        middleware: [esmTransform(
+            {logger: testLogger(), babelPlugins: [transformModulesAmd]})],
+        routes: {
+          '/my-page.html': `
+            <script src="normal-script.js"></script>
+            <script src="other-script.js"></script>`
+        },
+      },
+      async (server) => {
+        const html = squeeze((await request(server).get('/my-page.html')).text);
+        const injectAtTheTopSinceNoModuleScript = html.includes(squeeze(`
+          <script>${amdLoaderScript}</script>
+          <script src="normal-script.js"></script>
+          <script src="other-script.js"></script>
+        `));
+        if (!injectAtTheTopSinceNoModuleScript) {
+          console.log(
+              'Expected the AMD loader script to inject right at the top before first module script:\n',
+              html);
+        }
+        t.assert(
+            injectAtTheTopSinceNoModuleScript,
+            'should inject AMD loader at the top, since there are no module scripts');
+      });
+});
+
+
 test('transform module scripts based on user agent', async (t) => {
   t.plan(3);
   await createAndServe(
@@ -167,11 +228,11 @@ test('transform module scripts based on user agent', async (t) => {
         routes: {
           '/my-page.html': `
             <script type="module">
-            import * as x from './x.js'; x();
+              import * as x from './x.js'; x();
             </script>
             <script type="module" src="./y.js"></script>
             <script type="module">
-            z();
+              z();
             </script>
           `,
         },

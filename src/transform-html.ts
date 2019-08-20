@@ -23,7 +23,7 @@ import {containsPlugin} from './support/babel-utils';
 import {Logger} from './support/logger';
 import {getAttr, getTextContent, insertBefore, insertNode, removeAttr, removeNode, setAttr, setTextContent} from './support/parse5-utils';
 import {preserveSurroundingWhitespace} from './support/string-utils';
-import {appendQueryParameter} from './support/url-utils';
+import {appendQueryParameter, relativizeSrc} from './support/url-utils';
 import {transformJSModule} from './transform-js-module';
 
 const babelPresetMinify =
@@ -76,7 +76,7 @@ export const transformHTML = async(
 };
 
 const convertExternalModuleToInlineModule = (ast: DefaultTreeElement) => {
-  setTextContent(ast, `import '${getAttr(ast, 'src')}';`);
+  setTextContent(ast, `import '${relativizeSrc(getAttr(ast, 'src'))}';`);
   removeAttr(ast, 'src');
 };
 
