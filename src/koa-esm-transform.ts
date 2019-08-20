@@ -82,6 +82,12 @@ export type ContextualBabelPluginFunction = (ctx: Koa.Context) =>
 
 /**
  * Options for overriding default behavior of the middleware.
+ *
+ * TODO(usergenic): Add option to disable injecting AMD loader and
+ * regenerator-runtime in case developer wants to handle separately.
+ *
+ * TODO(usergenic): Add option for compile cache since every transform happens
+ * every request.
  */
 export type Options = {
   /**
