@@ -6,7 +6,7 @@ Consider an HTML file containing the following inline JavaScript module:
 
 ```html
 <script type="module">
-import {someFunction} from '../some-module.js';
+import {someFunction} from './some-module.js';
 someFunction();
 </script>
 ```
