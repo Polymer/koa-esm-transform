@@ -15,6 +15,8 @@ import {Server} from 'http';
 import Koa from 'koa';
 import route from 'koa-route';
 import {getPort} from 'portfinder';
+import {Readable} from 'stream';
+
 import {Logger} from '../support/logger';
 
 export type AppOptions = {
@@ -40,7 +42,10 @@ export const createApp = (options: AppOptions): Koa => {
         if (key.endsWith('.html')) {
           ctx.type = 'html';
         }
-        ctx.body = value;
+        const stream = new Readable();
+        stream.push(value);
+        stream.push(null);
+        ctx.body = stream;
       }));
     }
   }
