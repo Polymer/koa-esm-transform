@@ -46,7 +46,7 @@
     "@types/tape": "^4.2.33",
     "clang-format": "^1.2.4",
     "depcheck": "^0.8.3",
-    "koa": "^2.7.0",
+    "koa": "^3.1.2",
     "koa-route": "^3.2.0",
     "portfinder": "^1.0.22",
     "rimraf": "^2.6.3",
